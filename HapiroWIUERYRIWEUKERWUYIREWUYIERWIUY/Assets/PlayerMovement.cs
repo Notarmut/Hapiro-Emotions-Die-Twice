@@ -88,5 +88,6 @@ public class PlayerMovement : MonoBehaviour
         }
 
         _isDashing = false;
+        
     }
 }
