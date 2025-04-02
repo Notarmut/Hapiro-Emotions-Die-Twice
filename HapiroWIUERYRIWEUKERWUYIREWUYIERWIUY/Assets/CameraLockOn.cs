@@ -1,299 +1,164 @@
 using UnityEngine;
 using Unity.Cinemachine;
-using System.Collections;
-using System.Collections.Generic;
 
 public class CameraLockOn : MonoBehaviour
 {
-    [Header("Lock-On Settings")]
-    [SerializeField] float lockOnRadius = 10f;
-    [SerializeField] float lockOnAngle = 45f;
-    [SerializeField] LayerMask targetLayers;
-    [SerializeField] LayerMask obstructionLayers;
-    [SerializeField] string targetTag = "Enemy";
+    [Header("Cinemachine Settings")]
+    [SerializeField] private CinemachineVirtualCamera virtualCamera;
+    [SerializeField] private float lockOnRadius = 10f;
+    [SerializeField] private float maxLockOnDistance = 15f;
+    [SerializeField] private Vector3 targetOffset = new Vector3(0, 1.5f, 0);
 
-    [Header("Camera Settings")]
-    [SerializeField] CinemachineVirtualCamera virtualCamera;
-    [SerializeField] Transform cameraPivot;
-    [SerializeField] float lockOnTransitionTime = 0.3f;
-
-    [Header("Camera Transitions")]
-    [SerializeField] float lockOnTransitionDuration = 0.3f;
-    [SerializeField] Vector3 lockedShoulderOffset = new Vector3(0.8f, 0, 0);
-    [SerializeField] float lockedDamping = 0.1f;
-
-    [Header("Tracking Settings")]
-    [SerializeField] float maxLockOnDistance = 15f;
-    [SerializeField] float targetHeightOffset = 1.5f;
-    [SerializeField] float cameraRotationSpeed = 3f;
-
-    [Header("Debug")]
-    [SerializeField] bool showDebugGizmos = true;
-    [SerializeField] Color lockOnGizmoColor = Color.yellow;
-
-    // Camera components
-    private Cinemachine3rdPersonFollow thirdPersonFollow;
-    private Vector3 originalShoulderOffset;
-    private Vector3 originalDamping;
-    private Transform originalLookAt;
-    private float originalCameraDistance;
-
-    // State management
-    private Coroutine transitionRoutine;
+    [Header("Input Settings")]
+    [SerializeField] private KeyCode lockOnKey = KeyCode.Q;
+    
     private Transform currentTarget;
+    private CinemachineComposer composer;
     private bool isLockedOn;
-    private Quaternion originalPivotRotation;
 
-    private CinemachineCameraOffset cameraOffset;
-    private Vector3 originalCameraOffset;
-    private bool isTransitioning;
-
-    void Start()
+    private void Start()
     {
-        // Add this line
-        cameraOffset = virtualCamera.GetComponent<CinemachineCameraOffset>();
-        originalCameraOffset = cameraOffset != null ? cameraOffset.Offset : Vector3.zero;
-
-        // Existing initialization
-        thirdPersonFollow = virtualCamera.GetCinemachineComponent<Cinemachine3rdPersonFollow>();
-        originalShoulderOffset = thirdPersonFollow.ShoulderOffset;
-        originalDamping = thirdPersonFollow.Damping;
-        originalLookAt = virtualCamera.LookAt;
-        originalCameraDistance = thirdPersonFollow.CameraDistance;
-        originalPivotRotation = cameraPivot.localRotation;
-    }
-
-    void Update()
-    {
-        HandleLockOnInput();
-        if (isLockedOn) UpdateCameraFocus();
-    }
-
-    void HandleLockOnInput()
-    {
-        if (Input.GetButtonDown("LockOn"))
+        if (virtualCamera == null)
         {
-            if (!isLockedOn) TryAcquireTarget();
-            else ReleaseTarget();
+            virtualCamera = FindObjectOfType<CinemachineVirtualCamera>();
+            if (virtualCamera == null)
+            {
+                Debug.LogError("No CinemachineVirtualCamera found in scene!");
+                enabled = false;
+                return;
+            }
+        }
+
+        composer = virtualCamera.GetCinemachineComponent<CinemachineComposer>();
+        if (composer == null)
+        {
+            Debug.LogError("No CinemachineComposer found on virtual camera!");
+            enabled = false;
         }
     }
 
-    void TryAcquireTarget()
+    private void Update()
     {
-        var validTargets = new List<Transform>();
-        var hitColliders = Physics.OverlapSphere(transform.position, lockOnRadius, targetLayers);
+        if (Input.GetKeyDown(lockOnKey))
+        {
+            ToggleLockOn();
+        }
+
+        if (isLockedOn)
+        {
+            if (currentTarget == null || !IsTargetValid(currentTarget))
+            {
+                ReleaseTarget();
+                return;
+            }
+
+            UpdateCameraTracking();
+        }
+    }
+
+    private void ToggleLockOn()
+    {
+        if (!isLockedOn)
+        {
+            FindPotentialTarget();
+        }
+        else
+        {
+            ReleaseTarget();
+        }
+    }
+
+    private void FindPotentialTarget()
+    {
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, lockOnRadius);
+        float closestDistance = Mathf.Infinity;
+        Transform closestTarget = null;
 
         foreach (var col in hitColliders)
         {
-            if (col.CompareTag(targetTag))
+            if (col.CompareTag("Enemy"))
             {
-                // Modified visibility check with height offset
-                if (IsTargetVisible(col.transform, targetHeightOffset))
-                    validTargets.Add(col.transform);
+                float distance = Vector3.Distance(transform.position, col.transform.position);
+                if (distance < closestDistance && distance <= maxLockOnDistance)
+                {
+                    closestDistance = distance;
+                    closestTarget = col.transform;
+                }
             }
         }
 
-        if (validTargets.Count > 0)
+        if (closestTarget != null)
         {
-            currentTarget = GetOptimalTarget(validTargets);
-            StartCoroutine(LockOnSequence());
+            LockOnToTarget(closestTarget);
+            Debug.Log("Locked onto: " + closestTarget.name);
+        }
+        else
+        {
+            Debug.Log("No valid targets found");
         }
     }
 
-    IEnumerator LockOnSequence()
+    private bool IsTargetValid(Transform target)
     {
-        isTransitioning = true;
+        if (target == null) return false;
+        
+        // Check if target is within max distance
+        float distance = Vector3.Distance(transform.position, target.position);
+        if (distance > maxLockOnDistance) return false;
 
-        // 1. Initial camera transition
-        yield return StartCoroutine(TransitionCamera(true));
-
-        // 2. Continuous tracking
-        while (isLockedOn && currentTarget != null)
+        // Check line of sight
+        Vector3 direction = (target.position + targetOffset - virtualCamera.transform.position).normalized;
+        if (Physics.Raycast(virtualCamera.transform.position, direction, out RaycastHit hit, maxLockOnDistance))
         {
-            MaintainLockOn();
-            yield return null;
+            if (hit.transform != target)
+            {
+                return false;
+            }
         }
 
-        isTransitioning = false;
+        return true;
     }
 
-    void MaintainLockOn()
+    private void LockOnToTarget(Transform target)
     {
-        // Break lock if target is too far
-        if (Vector3.Distance(transform.position, currentTarget.position) > maxLockOnDistance)
-        {
-            ReleaseTarget();
-            return;
-        }
-
-        // Update camera focus position with offset
-        Vector3 targetPosition = currentTarget.position + Vector3.up * targetHeightOffset;
-
-        // Smooth camera follow
-        virtualCamera.LookAt.position = Vector3.Lerp(
-            virtualCamera.LookAt.position,
-            targetPosition,
-            Time.deltaTime * cameraRotationSpeed
-        );
-
-        // Optional: Add camera offset adjustments here
-        if (cameraOffset != null)
-        {
-            cameraOffset.Offset = Vector3.Lerp(
-                cameraOffset.Offset,
-                lockedShoulderOffset,
-                Time.deltaTime * 5f
-            );
-        }
+        currentTarget = target;
+        isLockedOn = true;
+        virtualCamera.LookAt = currentTarget;
+        
+        // Tighten camera damping for precise tracking
+        composer.m_HorizontalDamping = 0.1f;
+        composer.m_VerticalDamping = 0.1f;
+        composer.m_LookaheadTime = 0f;
     }
 
-    // Modified visibility check with height offset
-    bool IsTargetVisible(Transform target, float heightOffset)
+    private void UpdateCameraTracking()
     {
-        Vector3 targetPos = target.position + Vector3.up * heightOffset;
-        Vector3 dirToTarget = (targetPos - cameraPivot.position).normalized;
-        float distanceToTarget = Vector3.Distance(cameraPivot.position, targetPos);
-
-        if (Physics.Raycast(cameraPivot.position, dirToTarget, distanceToTarget, obstructionLayers))
-            return false;
-
-        float angle = Vector3.Angle(cameraPivot.forward, dirToTarget);
-        return angle < lockOnAngle;
+        // Force camera to look exactly at target
+        Vector3 targetPos = currentTarget.position + targetOffset;
+        Vector3 screenPoint = Camera.main.WorldToScreenPoint(targetPos);
+        Vector3 screenCenter = new Vector3(Screen.width/2, Screen.height/2, 0);
+        
+        // Adjust composer offset to keep target centered
+        Vector3 offset = (screenPoint - screenCenter) / 50f;
+        composer.m_TrackedObjectOffset = new Vector3(-offset.x, offset.y, 0);
     }
 
-    IEnumerator TransitionCamera(bool lockingOn)
-    {
-        if (transitionRoutine != null) StopCoroutine(transitionRoutine);
-
-        float elapsed = 0;
-        var startOffset = thirdPersonFollow.ShoulderOffset;
-        var startDamping = thirdPersonFollow.Damping;
-        var startLookAt = virtualCamera.LookAt;
-
-        var targetOffset = lockingOn ? lockedShoulderOffset : originalShoulderOffset;
-        var targetDamping = lockingOn ? new Vector3(lockedDamping, lockedDamping, lockedDamping) : originalDamping;
-        var targetLookAt = lockingOn ? currentTarget : originalLookAt;
-
-        // Create temporary LookAt target for smooth transition
-        GameObject tempLookAt = new GameObject("TempLookAt");
-        tempLookAt.transform.position = virtualCamera.LookAt.position;
-        virtualCamera.LookAt = tempLookAt.transform;
-
-        while (elapsed < lockOnTransitionDuration)
-        {
-            float t = Mathf.SmoothStep(0, 1, elapsed / lockOnTransitionDuration);
-
-            // Smoothly move temporary LookAt target
-            tempLookAt.transform.position = Vector3.Lerp(
-                startLookAt.position,
-                targetLookAt.position,
-                t
-            );
-
-            thirdPersonFollow.ShoulderOffset = Vector3.Lerp(startOffset, targetOffset, t);
-            thirdPersonFollow.Damping = Vector3.Lerp(startDamping, targetDamping, t);
-
-            elapsed += Time.deltaTime;
-            yield return null;
-        }
-
-        // Cleanup temporary object
-        Destroy(tempLookAt);
-        virtualCamera.LookAt = targetLookAt;
-
-        if (!lockingOn)
-        {
-            cameraPivot.localRotation = originalPivotRotation;
-            currentTarget = null;
-        }
-    }
-
-    void ReleaseTarget()
+    private void ReleaseTarget()
     {
         isLockedOn = false;
-        StartCoroutine(TransitionCamera(false));
+        currentTarget = null;
+        virtualCamera.LookAt = null;
+        
+        // Reset camera damping
+        composer.m_HorizontalDamping = 0.5f;
+        composer.m_VerticalDamping = 0.5f;
+        composer.m_TrackedObjectOffset = Vector3.zero;
+        Debug.Log("Lock-on released");
     }
 
-    Transform GetOptimalTarget(List<Transform> targets)
+    private void OnDrawGizmosSelected()
     {
-        Transform bestTarget = null;
-        float bestScore = Mathf.NegativeInfinity;
-
-        foreach (Transform target in targets)
-        {
-            Vector3 dirToTarget = (target.position - transform.position).normalized;
-            float dot = Vector3.Dot(transform.forward, dirToTarget);
-            float distance = Vector3.Distance(transform.position, target.position);
-
-            // Score targets based on alignment and proximity
-            float score = dot * 2f + (1 - distance / lockOnRadius);
-
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestTarget = target;
-            }
-        }
-
-        return bestTarget;
-    }
-
-    bool IsTargetVisible(Transform target)
-    {
-        Vector3 dirToTarget = (target.position - cameraPivot.position).normalized;
-        float distanceToTarget = Vector3.Distance(cameraPivot.position, target.position);
-
-        // Check for line of sight
-        if (Physics.Raycast(cameraPivot.position, dirToTarget, distanceToTarget, obstructionLayers))
-        {
-            return false;
-        }
-
-        // Check if within view angle
-        float angle = Vector3.Angle(cameraPivot.forward, dirToTarget);
-        return angle < lockOnAngle;
-    }
-
-    void UpdateCameraFocus()
-    {
-        if (!isLockedOn || currentTarget == null || isTransitioning) return;
-
-        Vector3 lookDirection = currentTarget.position - cameraPivot.position;
-        lookDirection.y = 0;
-
-        // Smooth pivot rotation
-        cameraPivot.rotation = Quaternion.Slerp(
-            cameraPivot.rotation,
-            Quaternion.LookRotation(lookDirection),
-            Time.deltaTime * 10f
-        );
-    }
-
-    void OnDisable()
-    {
-        // Force reset if disabled during transition
-        thirdPersonFollow.ShoulderOffset = originalShoulderOffset;
-        thirdPersonFollow.Damping = originalDamping; // Fixed line
-        virtualCamera.LookAt = originalLookAt;
-    }
-
-    void OnDrawGizmos()
-    {
-        if (!showDebugGizmos) return;
-
-        Gizmos.color = lockOnGizmoColor;
+        Gizmos.color = Color.cyan;
         Gizmos.DrawWireSphere(transform.position, lockOnRadius);
-
-        if (cameraPivot != null)
-        {
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawLine(cameraPivot.position, cameraPivot.position + cameraPivot.forward * lockOnRadius);
-        }
-
-        if (currentTarget != null)
-        {
-            Gizmos.color = Color.red;
-            Gizmos.DrawLine(cameraPivot.position, currentTarget.position);
-        }
     }
 }
