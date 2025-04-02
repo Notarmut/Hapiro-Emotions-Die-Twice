@@ -1,5 +1,6 @@
 using UnityEngine;
 using Unity.Cinemachine;
+using StarterAssets;  // Add this at the top with other using statements
 
 public class CameraLockOn : MonoBehaviour
 {
@@ -13,18 +14,20 @@ public class CameraLockOn : MonoBehaviour
 
     [Header("Input Settings")]
     [SerializeField] private KeyCode lockOnKey = KeyCode.Q;
-    
+
     [Header("Camera Damping")]
     [SerializeField] private float normalDamping = 0.5f;
     [SerializeField] private float lockedDamping = 0.1f;
 
     [Header("Rotation Settings")]
     [SerializeField] private float lockOnRotationSpeed = 15f;
-    
+
+    [Header("Player Reference")]
+    [SerializeField] private StarterAssets.ThirdPersonController thirdPersonController;
+
     private Transform currentTarget;
     private CinemachineComposer composer;
     private bool isLockedOn;
-    private PlayerMovement playerMovement;
 
     private void Start()
     {
@@ -45,8 +48,6 @@ public class CameraLockOn : MonoBehaviour
             Debug.LogError("No CinemachineComposer found on virtual camera!");
             enabled = false;
         }
-
-        playerMovement = GetComponent<PlayerMovement>();
     }
 
     private void Update()
@@ -67,7 +68,7 @@ public class CameraLockOn : MonoBehaviour
 
     private void HandleLockOnInput()
     {
-        if (Input.GetKeyDown(lockOnKey))
+        if (Input.GetKeyDown(lockOnKey) || Input.GetKeyDown("joystick button 9"))
         {
             if (!isLockedOn)
             {
@@ -78,8 +79,8 @@ public class CameraLockOn : MonoBehaviour
                 ReleaseTarget();
             }
         }
-        
-        // Optional: Add right stick input to switch targets when locked on
+
+        // Keep target switching logic unchanged
         if (isLockedOn && Mathf.Abs(Input.GetAxis("Mouse X")) > 0.5f)
         {
             FindPotentialTarget(Input.GetAxis("Mouse X") > 0);
@@ -87,7 +88,7 @@ public class CameraLockOn : MonoBehaviour
     }
 
     private void FindPotentialTarget(bool findNext = true)
-    {
+     {
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, lockOnRadius, targetLayer);
         Transform newTarget = null;
         float closestAngle = float.MaxValue;
@@ -103,8 +104,8 @@ public class CameraLockOn : MonoBehaviour
 
             if (!isLockedOn && angle > 90f) continue;
 
-            if (Physics.Linecast(transform.position + Vector3.up, 
-                               col.transform.position + targetOffset, 
+            if (Physics.Linecast(transform.position + Vector3.up,
+                               col.transform.position + targetOffset,
                                obstructionLayer))
             {
                 continue;
@@ -114,7 +115,7 @@ public class CameraLockOn : MonoBehaviour
             {
                 Vector3 cross = Vector3.Cross(transform.forward, dirToTarget);
                 float relativeAngle = Vector3.Angle(transform.forward, dirToTarget) * (cross.y < 0 ? -1 : 1);
-                
+
                 if ((findNext && relativeAngle > 0 && relativeAngle < closestAngle) ||
                     (!findNext && relativeAngle < 0 && -relativeAngle < closestAngle))
                 {
@@ -145,12 +146,12 @@ public class CameraLockOn : MonoBehaviour
     private bool IsTargetValid(Transform target)
     {
         if (target == null) return false;
-        
+
         float distance = Vector3.Distance(transform.position, target.position);
         if (distance > maxLockOnDistance) return false;
 
-        if (Physics.Linecast(transform.position + Vector3.up, 
-                           target.position + targetOffset, 
+        if (Physics.Linecast(transform.position + Vector3.up,
+                           target.position + targetOffset,
                            obstructionLayer))
         {
             return false;
@@ -164,11 +165,17 @@ public class CameraLockOn : MonoBehaviour
         currentTarget = target;
         isLockedOn = true;
         virtualCamera.LookAt = currentTarget;
-        
+
+        // Disable mouse input
+        if (thirdPersonController != null)
+        {
+            thirdPersonController.LockCameraPosition = true;
+        }
+
         composer.m_HorizontalDamping = lockedDamping;
         composer.m_VerticalDamping = lockedDamping;
         composer.m_LookaheadTime = 0f;
-        
+
         var pov = virtualCamera.GetComponent<CinemachinePOV>();
         pov.m_HorizontalAxis.m_MaxSpeed = 0f;
         pov.m_VerticalAxis.m_MaxSpeed = 0f;
@@ -180,11 +187,11 @@ public class CameraLockOn : MonoBehaviour
         {
             Vector3 directionToTarget = currentTarget.position - transform.position;
             directionToTarget.y = 0;
-            
+
             if (directionToTarget != Vector3.zero)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(directionToTarget);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation,
                     Time.deltaTime * lockOnRotationSpeed);
             }
         }
@@ -195,11 +202,17 @@ public class CameraLockOn : MonoBehaviour
         isLockedOn = false;
         currentTarget = null;
         virtualCamera.LookAt = null;
-        
+
+        // Re-enable mouse input
+        if (thirdPersonController != null)
+        {
+            thirdPersonController.LockCameraPosition = false;
+        }
+
         composer.m_HorizontalDamping = normalDamping;
         composer.m_VerticalDamping = normalDamping;
         composer.m_TrackedObjectOffset = Vector3.zero;
-        
+
         var pov = virtualCamera.GetComponent<CinemachinePOV>();
         pov.m_HorizontalAxis.m_MaxSpeed = 300f;
         pov.m_VerticalAxis.m_MaxSpeed = 2f;
@@ -209,7 +222,7 @@ public class CameraLockOn : MonoBehaviour
     {
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireSphere(transform.position, lockOnRadius);
-        
+
         if (isLockedOn && currentTarget != null)
         {
             Gizmos.color = Color.red;
