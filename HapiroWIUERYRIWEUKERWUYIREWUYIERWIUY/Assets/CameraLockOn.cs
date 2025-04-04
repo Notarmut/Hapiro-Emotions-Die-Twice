@@ -177,7 +177,6 @@ public class CameraLockOn : MonoBehaviour
         composer.m_LookaheadTime = 0f;
 
         var pov = virtualCamera.GetComponent<CinemachinePOV>();
-        pov.m_HorizontalAxis.m_MaxSpeed = 0f;
         pov.m_VerticalAxis.m_MaxSpeed = 0f;
     }
 
@@ -214,7 +213,6 @@ public class CameraLockOn : MonoBehaviour
         composer.m_TrackedObjectOffset = Vector3.zero;
 
         var pov = virtualCamera.GetComponent<CinemachinePOV>();
-        pov.m_HorizontalAxis.m_MaxSpeed = 300f;
         pov.m_VerticalAxis.m_MaxSpeed = 2f;
     }
 
