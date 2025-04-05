@@ -2,6 +2,10 @@ using UnityEngine;
 
 public class PlayerCombat : MonoBehaviour
 {
+    [Header("Combat States")]
+    public bool swordDrawn = false;
+    public bool isDrawingSword = false;
+
     [Header("Attack Parameters")]
     public float attackRange = 1.5f;
     public int[] attackDamage = { 25, 30 };
@@ -9,6 +13,10 @@ public class PlayerCombat : MonoBehaviour
     public float comboWindow = 0.8f;
     private float lastAttackTime = -1f;
     private int currentCombo = 0;
+
+    [Header("Drawing Sword")]
+    public float drawSwordTime = 0.5f;
+    private float drawSwordTimer = 0f;
 
     [Header("References")]
     public Transform attackPoint;
@@ -26,6 +34,17 @@ public class PlayerCombat : MonoBehaviour
 
     void Update()
     {
+        // Handle sword drawing
+        if (isDrawingSword)
+        {
+            drawSwordTimer += Time.deltaTime;
+            if (drawSwordTimer >= drawSwordTime)
+            {
+                FinishDrawingSword();
+            }
+            return; // Can't do anything else while drawing sword
+        }
+
         // Handle automatic return to idle
         if (attackInProgress)
         {
@@ -44,7 +63,11 @@ public class PlayerCombat : MonoBehaviour
 
         if (Input.GetButtonDown("Fire1"))
         {
-            if (CanAttack())
+            if (!swordDrawn)
+            {
+                StartDrawingSword();
+            }
+            else if (CanAttack())
             {
                 StartAttack();
             }
@@ -53,6 +76,20 @@ public class PlayerCombat : MonoBehaviour
                 ContinueCombo();
             }
         }
+    }
+
+    void StartDrawingSword()
+    {
+        isDrawingSword = true;
+        drawSwordTimer = 0f;
+        animator.SetTrigger("drawSword");
+    }
+
+    void FinishDrawingSword()
+    {
+        isDrawingSword = false;
+        swordDrawn = true;
+        animator.SetBool("swordDrawn", true);
     }
 
     bool ShouldReturnToIdle()
@@ -80,12 +117,12 @@ public class PlayerCombat : MonoBehaviour
 
     bool CanAttack()
     {
-        return Time.time >= lastAttackTime + attackCooldown && !attackInProgress;
+        return swordDrawn && Time.time >= lastAttackTime + attackCooldown && !attackInProgress;
     }
 
     bool CanCombo()
     {
-        return attackInProgress && 
+        return swordDrawn && attackInProgress && 
                currentCombo < attackDamage.Length - 1 && 
                animationTimer >= hitFrames[currentCombo] && 
                Time.time < lastAttackTime + comboWindow;
