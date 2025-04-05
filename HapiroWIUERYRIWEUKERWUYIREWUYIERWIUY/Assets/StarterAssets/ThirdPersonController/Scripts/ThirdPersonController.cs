@@ -38,8 +38,11 @@ namespace StarterAssets
         public bool LockCameraPosition = false;
 
         [Header("Dash")]
+        public bool enableDash = true; // Add this line
         public float DashSpeed = 10f;
         public float DashDuration = 0.2f;
+
+        [HideInInspector] public bool IsLockedOn = false;
 
         private bool isDashing = false;
         private float dashTimeRemaining;
@@ -100,14 +103,16 @@ namespace StarterAssets
 
         private void Update()
         {
-            // Check for dash input (Circle button on controller)
-            if (Input.GetKeyDown("joystick button 1") && !wasSprinting && Grounded)
+            // Check for dash input (Circle button on controller or Left Shift on keyboard)
+            bool dashPressed = (Input.GetKeyDown("joystick button 1") || Input.GetKeyDown(KeyCode.LeftShift));
+
+            if (dashPressed && !wasSprinting && Grounded)
             {
                 StartDash();
             }
 
-            // Sprint only if holding Circle button after dashing
-            bool isHoldingSprintButton = Input.GetKey("joystick button 1");
+            // Sprint only if holding Circle button or Left Shift after dashing
+            bool isHoldingSprintButton = Input.GetKey("joystick button 1") || Input.GetKey(KeyCode.LeftShift);
 
             wasSprinting = isHoldingSprintButton;
 
@@ -115,6 +120,7 @@ namespace StarterAssets
             GroundedCheck();
             Move();
         }
+
 
         private void LateUpdate()
         {
@@ -132,7 +138,8 @@ namespace StarterAssets
 
         private void CameraRotation()
         {
-            if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
+            // Don't rotate camera while dashing or if it's locked
+            if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition && !isDashing)
             {
                 float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
                 _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
@@ -209,6 +216,7 @@ namespace StarterAssets
 
             if (isDashing)
             {
+                // Maintain direction set when dash started, no rotation changes
                 targetDirection = dashDirection;
             }
             else if (_input.move != Vector2.zero)

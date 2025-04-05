@@ -1,6 +1,6 @@
 using UnityEngine;
 using Unity.Cinemachine;
-using StarterAssets;  // Add this at the top with other using statements
+using StarterAssets;
 
 public class CameraLockOn : MonoBehaviour
 {
@@ -24,10 +24,16 @@ public class CameraLockOn : MonoBehaviour
 
     [Header("Player Reference")]
     [SerializeField] private StarterAssets.ThirdPersonController thirdPersonController;
+    public GameObject playerarmatureRoot;
+
+    [Header("Locked-On Camera Offset")]
+    [SerializeField] private Vector3 lockedOnCameraOffset = new Vector3(0, 2, -5);
 
     private Transform currentTarget;
     private CinemachineComposer composer;
     private bool isLockedOn;
+    private GameObject lookAtTarget;
+    private Quaternion previousPlayerRotation;
 
     private void Start()
     {
@@ -48,12 +54,18 @@ public class CameraLockOn : MonoBehaviour
             Debug.LogError("No CinemachineComposer found on virtual camera!");
             enabled = false;
         }
+
+        lookAtTarget = new GameObject("LookAtTarget");
+        lookAtTarget.transform.SetParent(null);
+        lookAtTarget.hideFlags = HideFlags.HideAndDontSave;
+
+        previousPlayerRotation = transform.rotation;
     }
 
     private void Update()
     {
         HandleLockOnInput();
-        
+
         if (isLockedOn)
         {
             if (currentTarget == null || !IsTargetValid(currentTarget))
@@ -63,6 +75,8 @@ public class CameraLockOn : MonoBehaviour
             }
 
             UpdatePlayerRotation();
+            UpdateLookAtTarget();
+            ApplyCameraInversePlayerRotation();
         }
     }
 
@@ -71,16 +85,11 @@ public class CameraLockOn : MonoBehaviour
         if (Input.GetKeyDown(lockOnKey) || Input.GetKeyDown("joystick button 9"))
         {
             if (!isLockedOn)
-            {
                 FindPotentialTarget();
-            }
             else
-            {
                 ReleaseTarget();
-            }
         }
 
-        // Keep target switching logic unchanged
         if (isLockedOn && Mathf.Abs(Input.GetAxis("Mouse X")) > 0.5f)
         {
             FindPotentialTarget(Input.GetAxis("Mouse X") > 0);
@@ -88,7 +97,7 @@ public class CameraLockOn : MonoBehaviour
     }
 
     private void FindPotentialTarget(bool findNext = true)
-     {
+    {
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, lockOnRadius, targetLayer);
         Transform newTarget = null;
         float closestAngle = float.MaxValue;
@@ -107,14 +116,12 @@ public class CameraLockOn : MonoBehaviour
             if (Physics.Linecast(transform.position + Vector3.up,
                                col.transform.position + targetOffset,
                                obstructionLayer))
-            {
                 continue;
-            }
 
             if (isLockedOn)
             {
                 Vector3 cross = Vector3.Cross(transform.forward, dirToTarget);
-                float relativeAngle = Vector3.Angle(transform.forward, dirToTarget) * (cross.y < 0 ? -1 : 1);
+                float relativeAngle = angle * (cross.y < 0 ? -1 : 1);
 
                 if ((findNext && relativeAngle > 0 && relativeAngle < closestAngle) ||
                     (!findNext && relativeAngle < 0 && -relativeAngle < closestAngle))
@@ -151,11 +158,9 @@ public class CameraLockOn : MonoBehaviour
         if (distance > maxLockOnDistance) return false;
 
         if (Physics.Linecast(transform.position + Vector3.up,
-                           target.position + targetOffset,
-                           obstructionLayer))
-        {
+                             target.position + targetOffset,
+                             obstructionLayer))
             return false;
-        }
 
         return true;
     }
@@ -164,9 +169,10 @@ public class CameraLockOn : MonoBehaviour
     {
         currentTarget = target;
         isLockedOn = true;
-        virtualCamera.LookAt = currentTarget;
 
-        // Disable mouse input
+        virtualCamera.Follow = transform;
+        virtualCamera.LookAt = lookAtTarget.transform;
+
         if (thirdPersonController != null)
         {
             thirdPersonController.LockCameraPosition = true;
@@ -177,12 +183,30 @@ public class CameraLockOn : MonoBehaviour
         composer.m_LookaheadTime = 0f;
 
         var pov = virtualCamera.GetComponent<CinemachinePOV>();
-        pov.m_VerticalAxis.m_MaxSpeed = 0f;
+        if (pov != null)
+        {
+            pov.m_VerticalAxis.m_MaxSpeed = 0f;
+        }
+
+        previousPlayerRotation = transform.rotation;
+    }
+
+    private void UpdateLookAtTarget()
+    {
+        if (!isLockedOn || currentTarget == null || lookAtTarget == null) return;
+
+        Vector3 midpoint = (transform.position + currentTarget.position + targetOffset) / 2f;
+        lookAtTarget.transform.position = midpoint;
+
+        virtualCamera.transform.position = transform.position + lockedOnCameraOffset;
+
+        Quaternion targetRotation = Quaternion.LookRotation(currentTarget.position - virtualCamera.transform.position);
+        virtualCamera.transform.rotation = targetRotation;
     }
 
     private void UpdatePlayerRotation()
     {
-        if (currentTarget != null)
+        if (currentTarget != null && isLockedOn)
         {
             Vector3 directionToTarget = currentTarget.position - transform.position;
             directionToTarget.y = 0;
@@ -190,22 +214,29 @@ public class CameraLockOn : MonoBehaviour
             if (directionToTarget != Vector3.zero)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(directionToTarget);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation,
-                    Time.deltaTime * lockOnRotationSpeed);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * lockOnRotationSpeed);
             }
         }
+    }
+
+    private void ApplyCameraInversePlayerRotation()
+    {
+        Quaternion deltaRotation = transform.rotation * Quaternion.Inverse(previousPlayerRotation);
+        virtualCamera.transform.rotation = Quaternion.Inverse(deltaRotation) * virtualCamera.transform.rotation;
+        previousPlayerRotation = transform.rotation;
     }
 
     private void ReleaseTarget()
     {
         isLockedOn = false;
         currentTarget = null;
-        virtualCamera.LookAt = null;
 
-        // Re-enable mouse input
+        // Reset camera target to default player camera target
         if (thirdPersonController != null)
         {
             thirdPersonController.LockCameraPosition = false;
+            virtualCamera.Follow = thirdPersonController.CinemachineCameraTarget.transform;
+            virtualCamera.LookAt = thirdPersonController.CinemachineCameraTarget.transform;
         }
 
         composer.m_HorizontalDamping = normalDamping;
@@ -213,7 +244,11 @@ public class CameraLockOn : MonoBehaviour
         composer.m_TrackedObjectOffset = Vector3.zero;
 
         var pov = virtualCamera.GetComponent<CinemachinePOV>();
-        pov.m_VerticalAxis.m_MaxSpeed = 2f;
+        if (pov != null)
+        {
+            pov.m_HorizontalAxis.m_MaxSpeed = 300f;
+            pov.m_VerticalAxis.m_MaxSpeed = 2f;
+        }
     }
 
     private void OnDrawGizmosSelected()
