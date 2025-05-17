@@ -19,7 +19,6 @@ public class PlayerHealth : MonoBehaviour
     public float healCooldown = 1f;
     [Range(0.1f, 1f)] public float healingMoveSpeedMultiplier = 0.5f;
     public KeyCode healKey = KeyCode.R;
-    public string gamepadHealButton = "X"; // "X" for PlayStation, "A" for Xbox
 
     [Header("Animation & Effects")]
     public Animator animator;
@@ -30,7 +29,6 @@ public class PlayerHealth : MonoBehaviour
     public GameObject potionModel;
 
     [Header("References")]
-    [SerializeField] private ThirdPersonController movementController;
     public PlayerCombat combatController;
 
     // Private variables
@@ -56,13 +54,6 @@ public class PlayerHealth : MonoBehaviour
     void CacheReferences()
     {
         audioSource = GetComponent<AudioSource>();
-
-        if (movementController != null)
-        {
-            originalMoveSpeed = movementController.MoveSpeed;
-            originalSprintSpeed = movementController.SprintSpeed;
-            originalDashEnabled = movementController.enableDash;
-        }
 
         if (potionModel != null)
         {
@@ -90,15 +81,16 @@ public class PlayerHealth : MonoBehaviour
 
     void HandleHealInput()
     {
-        bool healPressed = Input.GetKeyDown(healKey) || Input.GetButtonDown(gamepadHealButton);
-
-        if (healPressed && CanHeal())
+        if (Input.GetKeyDown(healKey))
         {
-            StartCoroutine(Heal());
-        }
-        else if (healPressed && currentHealingCharges <= 0 && healEmptySound != null)
-        {
-            audioSource.PlayOneShot(healEmptySound);
+            if (CanHeal())
+            {
+                StartCoroutine(Heal());
+            }
+            else if (currentHealingCharges <= 0 && healEmptySound != null)
+            {
+                audioSource.PlayOneShot(healEmptySound);
+            }
         }
     }
 
@@ -115,14 +107,13 @@ public class PlayerHealth : MonoBehaviour
     {
         SetupHealingState();
 
-        // Healing process
         float healStartTime = Time.time;
         int targetHealth = Mathf.Min(currentHealth + healingPerCharge, maxHealth);
         int healthBefore = currentHealth;
 
         while (Time.time - healStartTime < healingDuration)
         {
-            if (!isHealing) break; // Check if interrupted
+            if (!isHealing) break;
 
             float progress = (Time.time - healStartTime) / healingDuration;
             currentHealth = healthBefore + Mathf.RoundToInt(progress * (targetHealth - healthBefore));
@@ -138,19 +129,10 @@ public class PlayerHealth : MonoBehaviour
         lastHealTime = Time.time;
         currentHealingCharges--;
 
-        // Visual/Audio feedback
         if (potionModel != null) potionModel.SetActive(true);
         if (animator != null) animator.SetTrigger(healAnimationTrigger);
         if (healSound != null) audioSource.PlayOneShot(healSound);
         if (healParticles != null) healParticles.Play();
-
-        // Movement restrictions
-        if (movementController != null)
-        {
-            movementController.MoveSpeed = originalMoveSpeed * healingMoveSpeedMultiplier;
-            movementController.SprintSpeed = originalMoveSpeed * healingMoveSpeedMultiplier;
-            movementController.enableDash = false;
-        }
 
         if (combatController != null) combatController.enabled = false;
     }
@@ -158,14 +140,6 @@ public class PlayerHealth : MonoBehaviour
     void CleanUpHealing()
     {
         if (potionModel != null) potionModel.SetActive(false);
-
-        // Restore movement
-        if (movementController != null)
-        {
-            movementController.MoveSpeed = originalMoveSpeed;
-            movementController.SprintSpeed = originalSprintSpeed;
-            movementController.enableDash = originalDashEnabled;
-        }
 
         if (combatController != null) combatController.enabled = true;
 
