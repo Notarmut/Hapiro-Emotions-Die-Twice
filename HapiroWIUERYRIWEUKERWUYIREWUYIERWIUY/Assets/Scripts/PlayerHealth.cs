@@ -1,6 +1,5 @@
 using UnityEngine;
 using System.Collections;
-using StarterAssets;
 
 public class PlayerHealth : MonoBehaviour
 {
@@ -156,6 +155,12 @@ public class PlayerHealth : MonoBehaviour
 
         if (isHealing) StopHealing();
         if (currentHealth <= 0) Die();
+    }
+
+    public void SetTemporaryInvincibility(float duration)
+    {
+        isInvincible = true;
+        invincibilityTimer = duration;
     }
 
     void StopHealing()

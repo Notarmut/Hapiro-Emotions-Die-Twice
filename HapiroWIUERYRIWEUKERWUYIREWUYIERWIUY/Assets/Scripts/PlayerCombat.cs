@@ -2,204 +2,183 @@ using UnityEngine;
 
 public class PlayerCombat : MonoBehaviour
 {
-    [Header("Combat States")]
-    public bool swordDrawn = false;
-    public bool isDrawingSword = false;
-
-    [Header("Attack Parameters")]
-    public float attackRange = 1.5f;
-    public int[] attackDamage = { 25, 30 };
-    public float attackCooldown = 0.5f;
-    public float comboWindow = 0.8f;
-    private float lastAttackTime = -1f;
-    private int currentCombo = 0;
-
-    [Header("Drawing Sword")]
-    public float drawSwordTime = 0.5f;
-    private float drawSwordTimer = 0f;
-
-    [Header("References")]
+    [Header("General")]
+    public Animator animator;
     public Transform attackPoint;
     public LayerMask enemyLayers;
-    public ParticleSystem bloodParticles;
-    public Animator animator;
-    
-    [Header("Animation Timing")]
-    public float[] hitFrames = { 0.3f, 0.2f };
-    public float[] resetTimes = { 0.5f, 0.6f };
-    private float animationTimer = 0f;
-    private bool attackInProgress = false;
-    private bool hitDetected = false;
-    private bool resetTriggered = false;
+    public ParticleSystem bloodEffect;
+
+    [Header("Sword")]
+    public float drawSwordTime = 0.5f;
+    private bool swordDrawn = false;
+
+    [Header("Attack")]
+    public float[] attackTimings = { 0.3f, 0.25f, 0.2f }; // Add timing for the third attack
+    public int[] attackDamages = { 20, 30, 40 }; // Add damage for the third attack
+    public float comboResetTime = 1f;
+    public float attackCooldown = 0.4f;
+    public float attackRange = 1.5f;
+
+    private float comboInputTimer = 0f;
+    private bool waitingForComboInput = false;
+
+    private int comboIndex = 0;
+    private float lastAttackTime = -99f;
+    private float attackTimer = 0f;
+    private bool hitOccurred = false;
+
+    private enum CombatState { Idle, Drawing, Attacking }
+    private CombatState state = CombatState.Idle;
+
+    private ThirdPersonControllerr movementController;
+
+    void Start()
+    {
+        movementController = GetComponent<ThirdPersonControllerr>();
+    }
 
     void Update()
     {
-        // Handle sword drawing
-        if (isDrawingSword)
-        {
-            drawSwordTimer += Time.deltaTime;
-            if (drawSwordTimer >= drawSwordTime)
-            {
-                FinishDrawingSword();
-            }
-            return; // Can't do anything else while drawing sword
-        }
+        HandleInput();
 
-        // Handle automatic return to idle
-        if (attackInProgress)
-        {
-            animationTimer += Time.deltaTime;
-            
-            // Check if we should return to idle
-            if (ShouldReturnToIdle())
-            {
-                ResetToIdle();
-                return;
-            }
+        if (state == CombatState.Attacking)
+            HandleAttackTiming();
+        else if (state == CombatState.Drawing && Time.time - lastAttackTime >= drawSwordTime)
+            FinishDrawingSword();
 
-            // Normal attack update
-            UpdateAttack();
-        }
-
-        if (Input.GetButtonDown("Fire1"))
+        // Track combo input timeout
+        if (waitingForComboInput)
         {
-            if (!swordDrawn)
+            comboInputTimer += Time.deltaTime;
+            if (comboInputTimer >= comboResetTime)
             {
-                StartDrawingSword();
-            }
-            else if (CanAttack())
-            {
-                StartAttack();
-            }
-            else if (CanCombo())
-            {
-                ContinueCombo();
+                ResetCombat();
             }
         }
     }
 
-    void StartDrawingSword()
+    void HandleInput()
     {
-        isDrawingSword = true;
-        drawSwordTimer = 0f;
+        if (Input.GetButtonDown("Fire1"))
+        {
+            comboInputTimer = 0f;
+            waitingForComboInput = true;
+
+            if (!swordDrawn)
+            {
+                DrawSword();
+            }
+            else if (state == CombatState.Idle && Time.time - lastAttackTime >= attackCooldown)
+            {
+                StartAttack(0); // Start the first attack
+            }
+            else if (state == CombatState.Attacking && CanChainCombo())
+            {
+                StartAttack(comboIndex + 1); // Continue combo chain
+            }
+        }
+    }
+
+    void DrawSword()
+    {
+        state = CombatState.Drawing;
+        lastAttackTime = Time.time;
         animator.SetTrigger("drawSword");
     }
 
     void FinishDrawingSword()
     {
-        isDrawingSword = false;
+        state = CombatState.Idle;
         swordDrawn = true;
         animator.SetBool("swordDrawn", true);
     }
 
-    bool ShouldReturnToIdle()
+    void StartAttack(int index)
     {
-        // If combo window expired and we're not in a combo
-        if (currentCombo == 0 && Time.time > lastAttackTime + comboWindow)
-            return true;
-        
-        // If we've passed the reset time for current attack
-        if (animationTimer >= resetTimes[currentCombo] + 0.2f)
-            return true;
-            
-        return false;
-    }
+        if (index >= attackDamages.Length) return;
 
-    void ResetToIdle()
-    {
-        attackInProgress = false;
-        currentCombo = 0;
-        animationTimer = 0f;
-        animator.SetInteger("comboStep", 0);
-        animator.SetTrigger("attackReset");
-        animator.ResetTrigger("attackTrigger");
-    }
-
-    bool CanAttack()
-    {
-        return swordDrawn && Time.time >= lastAttackTime + attackCooldown && !attackInProgress;
-    }
-
-    bool CanCombo()
-    {
-        return swordDrawn && attackInProgress && 
-               currentCombo < attackDamage.Length - 1 && 
-               animationTimer >= hitFrames[currentCombo] && 
-               Time.time < lastAttackTime + comboWindow;
-    }
-
-    void StartAttack()
-    {
-        InitiateAttack(0);
-    }
-
-    void ContinueCombo()
-    {
-        InitiateAttack(currentCombo + 1);
-    }
-
-    void InitiateAttack(int comboStep)
-    {
-        attackInProgress = true;
-        hitDetected = false;
-        resetTriggered = false;
-        animationTimer = 0f;
-        currentCombo = comboStep;
+        comboIndex = index;
         lastAttackTime = Time.time;
-        
-        animator.ResetTrigger("attackReset");
-        animator.SetInteger("comboStep", currentCombo);
+        attackTimer = 0f;
+        hitOccurred = false;
+
+        state = CombatState.Attacking;
+        animator.SetInteger("attackIndex", comboIndex);
         animator.SetTrigger("attackTrigger");
-    }
 
-    void UpdateAttack()
-    {
-        // Hit detection
-        if (!hitDetected && animationTimer >= hitFrames[currentCombo])
+        Debug.Log("Starting attack. Applying lunge.");
+        if (movementController != null)
         {
-            PerformHitDetection();
-            hitDetected = true;
+            movementController.ApplyAttackLunge();
         }
-        
-        // Automatic reset after attack completes
-        if (!resetTriggered && animationTimer >= resetTimes[currentCombo])
+        else
         {
-            resetTriggered = true;
-            if (currentCombo == 1) // Only force reset after second attack
-            {
-                ResetToIdle();
-            }
+            Debug.LogWarning("movementController is null!");
         }
     }
 
-    void PerformHitDetection()
+    void HandleAttackTiming()
     {
-        Collider[] hitEnemies = Physics.OverlapSphere(attackPoint.position, attackRange, enemyLayers);
-        
-        foreach (Collider enemy in hitEnemies)
+        attackTimer += Time.deltaTime;
+
+        if (!hitOccurred && attackTimer >= attackTimings[comboIndex])
         {
-            Enemy enemyHealth = enemy.GetComponent<Enemy>();
-            if (enemyHealth != null)
-            {
-                enemyHealth.TakeDamage(attackDamage[currentCombo]);
-                SpawnBloodParticles(enemy.ClosestPoint(attackPoint.position));
-            }
+            DetectHit();
+            hitOccurred = true;
         }
+
+        if (attackTimer >= comboResetTime)
+        {
+            ResetCombat();
+        }
+    }
+
+    bool CanChainCombo()
+    {
+        return comboIndex + 1 < attackDamages.Length &&
+               attackTimer >= attackTimings[comboIndex] &&
+               Time.time - lastAttackTime <= comboResetTime;
     }
     
-    void SpawnBloodParticles(Vector3 position)
+    void DetectHit()
     {
-        if (bloodParticles != null)
+        Collider[] hits = Physics.OverlapSphere(attackPoint.position, attackRange, enemyLayers);
+        foreach (Collider col in hits)
         {
-            ParticleSystem blood = Instantiate(bloodParticles, position, Quaternion.identity);
+            if (col.TryGetComponent(out Enemy enemy))
+            {
+                enemy.TakeDamage(attackDamages[comboIndex]);
+                SpawnBlood(col.ClosestPoint(attackPoint.position));
+            }
+        }
+    }
+
+    void SpawnBlood(Vector3 pos)
+    {
+        if (bloodEffect != null)
+        {
+            ParticleSystem blood = Instantiate(bloodEffect, pos, Quaternion.identity);
             Destroy(blood.gameObject, blood.main.duration);
         }
     }
-    
+
+    void ResetCombat()
+    {
+        state = CombatState.Idle;
+        comboIndex = 0;
+        attackTimer = 0f;
+        comboInputTimer = 0f;
+        waitingForComboInput = false;
+        animator.SetTrigger("attackReset");
+        Debug.Log("combat reseted");
+    }
+
     void OnDrawGizmosSelected()
     {
-        if (attackPoint == null) return;
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(attackPoint.position, attackRange);
+        if (attackPoint != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(attackPoint.position, attackRange);
+        }
     }
 }
