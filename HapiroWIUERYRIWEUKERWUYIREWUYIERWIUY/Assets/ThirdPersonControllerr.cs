@@ -16,7 +16,7 @@ public class ThirdPersonControllerr : MonoBehaviour
     [Header("Roll Settings")]
     public KeyCode rollKey = KeyCode.Space;
     public float rollSpeed = 8f;
-    public float rollRotationSpeed = 720f; // Degrees per second
+    public float rollRotationSpeed = 720f;
     public float rollDuration = 0.6f;
 
     [Header("Roll Cooldown")]
@@ -26,6 +26,8 @@ public class ThirdPersonControllerr : MonoBehaviour
     [Header("Attack Lunge Settings")]
     public float lungeForce = 5f;
     public float lungeDuration = 0.2f;
+    public LayerMask obstacleLayers; // Boss gibi çarpışmalar için
+    public float lungeCheckDistance = 1f;
 
     private bool isAttacking = false;
     private float lungeTimer = 0f;
@@ -36,7 +38,6 @@ public class ThirdPersonControllerr : MonoBehaviour
     private Vector3 velocity;
 
     private bool allowMovement = true;
-
     private bool isRolling = false;
 
     void Start()
@@ -126,9 +127,23 @@ public class ThirdPersonControllerr : MonoBehaviour
     {
         yield return new WaitForSeconds(0.33f);
 
+        // --- Engel kontrolü yap ---
+        Vector3 origin = transform.position + Vector3.up * 0.5f;
+        bool blocked = Physics.Raycast(origin, transform.forward, lungeCheckDistance, obstacleLayers);
+
         isAttacking = true;
         lungeTimer = lungeDuration;
-        lungeDirection = transform.forward;
+
+        if (blocked)
+        {
+            Debug.Log("Lunge engellendi: Engel algılandı.");
+            lungeDirection = Vector3.zero;
+        }
+        else
+        {
+            lungeDirection = transform.forward;
+        }
+
         allowMovement = false;
     }
 

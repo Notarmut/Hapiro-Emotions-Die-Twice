@@ -149,7 +149,10 @@ public class PlayerCombat : MonoBehaviour
             {
                 enemy.TakeDamage(attackDamages[comboIndex]);
                 SpawnBlood(col.ClosestPoint(attackPoint.position));
+
+
             }
+
         }
     }
 
