@@ -19,6 +19,10 @@ public class ThirdPersonControllerr : MonoBehaviour
     public float rollRotationSpeed = 720f; // Degrees per second
     public float rollDuration = 0.6f;
 
+    [Header("Roll Cooldown")]
+    public float rollCooldown = 1.0f;
+    private float lastRollTime = -Mathf.Infinity;
+
     [Header("Attack Lunge Settings")]
     public float lungeForce = 5f;
     public float lungeDuration = 0.2f;
@@ -45,7 +49,6 @@ public class ThirdPersonControllerr : MonoBehaviour
     {
         if (isRolling)
         {
-            // Rotate cube visually while rolling
             transform.Rotate(Vector3.right, rollRotationSpeed * Time.deltaTime);
             return;
         }
@@ -57,7 +60,7 @@ public class ThirdPersonControllerr : MonoBehaviour
             if (lungeTimer <= 0f)
             {
                 isAttacking = false;
-                allowMovement = true; // re-enable movement after lunge
+                allowMovement = true;
             }
             return;
         }
@@ -65,16 +68,14 @@ public class ThirdPersonControllerr : MonoBehaviour
         if (!allowMovement)
             return;
 
-        // Movement input
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical = Input.GetAxisRaw("Vertical");
         Vector3 inputDir = new Vector3(horizontal, 0f, vertical).normalized;
 
-        // Lock-on behavior
         ThirdPersonCamera cam = Camera.main.GetComponent<ThirdPersonCamera>();
         bool isLockedOn = cam != null && cam.IsLockedOn() && cam.GetLockOnTarget() != null;
 
-        if (Input.GetKeyDown(rollKey))
+        if (Input.GetKeyDown(rollKey) && Time.time >= lastRollTime + rollCooldown)
         {
             StartCoroutine(PerformRoll());
             return;
@@ -82,7 +83,6 @@ public class ThirdPersonControllerr : MonoBehaviour
 
         if (isLockedOn)
         {
-            // Face the target
             Vector3 dirToTarget = cam.GetLockOnTarget().position - transform.position;
             dirToTarget.y = 0f;
             if (dirToTarget != Vector3.zero)
@@ -91,7 +91,6 @@ public class ThirdPersonControllerr : MonoBehaviour
                 transform.rotation = Quaternion.Slerp(transform.rotation, lookRot, Time.deltaTime * rotationSpeed);
             }
 
-            // Move relative to self
             Vector3 desiredMove = transform.right * horizontal + transform.forward * vertical;
             desiredMove.Normalize();
             moveDirection = Vector3.MoveTowards(moveDirection, desiredMove * moveSpeed, acceleration * Time.deltaTime);
@@ -113,10 +112,7 @@ public class ThirdPersonControllerr : MonoBehaviour
             }
         }
 
-        // Apply movement
         controller.Move(moveDirection * Time.deltaTime);
-
-        // Apply gravity
         velocity.y += Physics.gravity.y * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
     }
@@ -128,7 +124,7 @@ public class ThirdPersonControllerr : MonoBehaviour
 
     private IEnumerator DelayedLunge()
     {
-        yield return new WaitForSeconds(0.33f); // wait before lunge
+        yield return new WaitForSeconds(0.33f);
 
         isAttacking = true;
         lungeTimer = lungeDuration;
@@ -138,14 +134,13 @@ public class ThirdPersonControllerr : MonoBehaviour
 
     IEnumerator PerformRoll()
     {
+        lastRollTime = Time.time;
         isRolling = true;
 
-        // References
         ThirdPersonCamera cam = Camera.main.GetComponent<ThirdPersonCamera>();
         bool isLockedOn = cam != null && cam.IsLockedOn() && cam.GetLockOnTarget() != null;
         PlayerHealth health = GetComponent<PlayerHealth>();
 
-        // Input at roll time
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical = Input.GetAxisRaw("Vertical");
         Vector3 inputDir = new Vector3(horizontal, 0f, vertical).normalized;
@@ -165,31 +160,27 @@ public class ThirdPersonControllerr : MonoBehaviour
 
         if (inputDir == Vector3.zero)
         {
-            // Backstep
             rollDirection = -transform.forward;
         }
 
         rollDirection.Normalize();
 
-        // Face roll direction
         if (rollDirection != Vector3.zero)
         {
             Quaternion rollRot = Quaternion.LookRotation(rollDirection);
             transform.rotation = rollRot;
         }
 
-        // Apply i-frames
         if (health != null)
         {
             health.SetTemporaryInvincibility(rollDuration);
         }
 
-        // Perform roll
         float timer = 0f;
         while (timer < rollDuration)
         {
             controller.Move(rollDirection * rollSpeed * Time.deltaTime);
-            transform.Rotate(Vector3.right, rollRotationSpeed * Time.deltaTime); // visual spin
+            transform.Rotate(Vector3.right, rollRotationSpeed * Time.deltaTime);
             timer += Time.deltaTime;
             yield return null;
         }
