@@ -22,9 +22,13 @@ public class ThirdPersonCamera : MonoBehaviour
     private float yaw;
     private float pitch;
 
+
+
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
+
+      
     }
 
     void LateUpdate()
@@ -106,4 +110,6 @@ public class ThirdPersonCamera : MonoBehaviour
 
     public bool IsLockedOn() => isLockedOn;
     public Transform GetLockOnTarget() => lockOnTarget;
+    
+   
 }

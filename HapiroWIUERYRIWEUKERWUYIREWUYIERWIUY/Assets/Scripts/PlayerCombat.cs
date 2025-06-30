@@ -32,9 +32,17 @@ public class PlayerCombat : MonoBehaviour
 
     private ThirdPersonControllerr movementController;
 
+        
+
+
+
+
+
     void Start()
     {
         movementController = GetComponent<ThirdPersonControllerr>();
+        
+
     }
 
     void Update()
@@ -150,7 +158,8 @@ public class PlayerCombat : MonoBehaviour
                 enemy.TakeDamage(attackDamages[comboIndex]);
                 SpawnBlood(col.ClosestPoint(attackPoint.position));
 
-
+               
+               
             }
 
         }
