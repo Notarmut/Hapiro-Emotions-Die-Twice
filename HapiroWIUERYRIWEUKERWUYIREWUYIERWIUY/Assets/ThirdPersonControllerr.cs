@@ -18,6 +18,7 @@ public class ThirdPersonControllerr : MonoBehaviour
     public float rollSpeed = 8f;
     public float rollRotationSpeed = 720f;
     public float rollDuration = 0.6f;
+    public AudioClip rollSound; // Roll sound effect
 
     [Header("Roll Cooldown")]
     public float rollCooldown = 1.0f;
@@ -26,7 +27,7 @@ public class ThirdPersonControllerr : MonoBehaviour
     [Header("Attack Lunge Settings")]
     public float lungeForce = 5f;
     public float lungeDuration = 0.2f;
-    public LayerMask obstacleLayers; // Boss gibi çarpışmalar için
+    public LayerMask obstacleLayers;
     public float lungeCheckDistance = 1f;
 
     private bool isAttacking = false;
@@ -39,11 +40,19 @@ public class ThirdPersonControllerr : MonoBehaviour
 
     private bool allowMovement = true;
     private bool isRolling = false;
+    private AudioSource audioSource; // Audio source for roll sound
 
     void Start()
     {
         controller = GetComponent<CharacterController>();
         Cursor.lockState = CursorLockMode.Locked;
+        
+        // Get or create audio source
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
     }
 
     void Update()
@@ -127,7 +136,6 @@ public class ThirdPersonControllerr : MonoBehaviour
     {
         yield return new WaitForSeconds(0.33f);
 
-        // --- Engel kontrolü yap ---
         Vector3 origin = transform.position + Vector3.up * 0.5f;
         bool blocked = Physics.Raycast(origin, transform.forward, lungeCheckDistance, obstacleLayers);
 
@@ -151,6 +159,12 @@ public class ThirdPersonControllerr : MonoBehaviour
     {
         lastRollTime = Time.time;
         isRolling = true;
+        
+        // Play roll sound effect
+        if (rollSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(rollSound);
+        }
 
         ThirdPersonCamera cam = Camera.main.GetComponent<ThirdPersonCamera>();
         bool isLockedOn = cam != null && cam.IsLockedOn() && cam.GetLockOnTarget() != null;

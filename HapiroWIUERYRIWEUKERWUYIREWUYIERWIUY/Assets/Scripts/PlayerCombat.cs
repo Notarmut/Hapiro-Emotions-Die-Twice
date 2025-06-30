@@ -11,13 +11,15 @@ public class PlayerCombat : MonoBehaviour
     [Header("Sword")]
     public float drawSwordTime = 0.5f;
     private bool swordDrawn = false;
+    public AudioClip swordDrawSound;
 
     [Header("Attack")]
-    public float[] attackTimings = { 0.3f, 0.25f, 0.2f }; // Add timing for the third attack
-    public int[] attackDamages = { 20, 30, 40 }; // Add damage for the third attack
+    public float[] attackTimings = { 0.3f, 0.25f, 0.2f };
+    public int[] attackDamages = { 20, 30, 40 };
     public float comboResetTime = 1f;
     public float attackCooldown = 0.4f;
     public float attackRange = 1.5f;
+    public AudioClip swordAttackSound; // Single sound for all attacks
 
     private float comboInputTimer = 0f;
     private bool waitingForComboInput = false;
@@ -31,18 +33,17 @@ public class PlayerCombat : MonoBehaviour
     private CombatState state = CombatState.Idle;
 
     private ThirdPersonControllerr movementController;
-
-        
-
-
-
-
+    private AudioSource audioSource;
 
     void Start()
     {
         movementController = GetComponent<ThirdPersonControllerr>();
         
-
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
     }
 
     void Update()
@@ -92,6 +93,11 @@ public class PlayerCombat : MonoBehaviour
         state = CombatState.Drawing;
         lastAttackTime = Time.time;
         animator.SetTrigger("drawSword");
+        
+        if (swordDrawSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(swordDrawSound);
+        }
     }
 
     void FinishDrawingSword()
@@ -113,6 +119,12 @@ public class PlayerCombat : MonoBehaviour
         state = CombatState.Attacking;
         animator.SetInteger("attackIndex", comboIndex);
         animator.SetTrigger("attackTrigger");
+
+        // Play attack sound at the start of each attack
+        if (swordAttackSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(swordAttackSound);
+        }
 
         Debug.Log("Starting attack. Applying lunge.");
         if (movementController != null)
@@ -157,11 +169,7 @@ public class PlayerCombat : MonoBehaviour
             {
                 enemy.TakeDamage(attackDamages[comboIndex]);
                 SpawnBlood(col.ClosestPoint(attackPoint.position));
-
-               
-               
             }
-
         }
     }
 

@@ -5595,6 +5595,7 @@ MonoBehaviour:
   lockOnYawOffset: -5
   lockOnPitchOffset: 2.38
   lockOnHeightOffset: 0.62
+  lockOnIndicatorPrefab: {fileID: 3113560745041224195, guid: 17c394c1f6ada2643abb9dd584384127, type: 3}
 --- !u!1 &1043917904
 GameObject:
   m_ObjectHideFlags: 0
@@ -12471,7 +12472,7 @@ Transform:
   m_GameObject: {fileID: 7820393883819202484}
   serializedVersion: 2
   m_LocalRotation: {x: -0.6970199, y: 0.119010255, z: 0.065445624, w: 0.7040716}
-  m_LocalPosition: {x: 0, y: 2.14, z: 0.43}
+  m_LocalPosition: {x: -0.03, y: 2.14, z: 0.34}
   m_LocalScale: {x: 100, y: 99.999985, z: 99.999985}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -13680,7 +13681,7 @@ Transform:
   m_GameObject: {fileID: 8261429145545420790}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0, y: 0.008587262, z: 0}
+  m_LocalPosition: {x: 0, y: 0.0072, z: -0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -14057,6 +14058,7 @@ MonoBehaviour:
   rollSpeed: 4
   rollRotationSpeed: 360
   rollDuration: 0.5
+  rollSound: {fileID: 8300000, guid: af50718e67a6b874da7bfb259fef1021, type: 3}
   rollCooldown: 1
   lungeForce: 3
   lungeDuration: 0.2
@@ -14155,6 +14157,7 @@ MonoBehaviour:
     m_Bits: 64
   bloodEffect: {fileID: 1496638852498092603}
   drawSwordTime: 0.5
+  swordDrawSound: {fileID: 8300000, guid: 10ac5c7c17942964093a5c97eeb60f3c, type: 3}
   attackTimings:
   - 0.67
   - 0.67
@@ -14164,6 +14167,7 @@ MonoBehaviour:
   comboResetTime: 1.5
   attackCooldown: 0.4
   attackRange: 1.5
+  swordAttackSound: {fileID: 8300000, guid: 57e59932c35c41d468d47ba1f50b58a6, type: 3}
 --- !u!82 &7612688735690260638
 AudioSource:
   m_ObjectHideFlags: 0

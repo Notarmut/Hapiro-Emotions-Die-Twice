@@ -16,19 +16,23 @@ public class ThirdPersonCamera : MonoBehaviour
     public float lockOnPitchOffset = 0f;
     public float lockOnHeightOffset = 1.5f;
 
+    [Header("Targeting UI")]
+    public GameObject lockOnIndicatorPrefab; // Small dot UI prefab
+    private GameObject lockOnIndicator;
+    private Canvas lockOnCanvas;
+
     private Transform lockOnTarget;
     private bool isLockedOn = false;
 
     private float yaw;
     private float pitch;
 
-
-
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
-
-      
+        
+        // Create targeting UI
+        CreateLockOnIndicator();
     }
 
     void LateUpdate()
@@ -49,6 +53,9 @@ public class ThirdPersonCamera : MonoBehaviour
             Quaternion lockRotation = Quaternion.Euler(pitch, yaw, 0);
             transform.position = target.position + lockRotation * offset;
             transform.LookAt(lockOnTarget.position + Vector3.up * lockOnHeightOffset);
+            
+            // Update lock-on indicator position
+            UpdateLockOnIndicator();
         }
         else
         {
@@ -60,6 +67,47 @@ public class ThirdPersonCamera : MonoBehaviour
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0);
             transform.position = target.position + rotation * offset;
             transform.LookAt(target.position + Vector3.up * 1.5f);
+            
+            // Hide indicator when not locked on
+            if (lockOnIndicator != null) lockOnIndicator.SetActive(false);
+        }
+    }
+
+    void CreateLockOnIndicator()
+    {
+        // Create canvas for indicator
+        lockOnCanvas = new GameObject("LockOnCanvas").AddComponent<Canvas>();
+        lockOnCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        lockOnCanvas.sortingOrder = 1000;
+        
+        // Instantiate indicator
+        if (lockOnIndicatorPrefab != null)
+        {
+            lockOnIndicator = Instantiate(lockOnIndicatorPrefab, lockOnCanvas.transform);
+            lockOnIndicator.SetActive(false);
+        }
+        else
+        {
+            Debug.LogWarning("Lock On Indicator Prefab not assigned!");
+        }
+    }
+
+    void UpdateLockOnIndicator()
+    {
+        if (lockOnIndicator == null || lockOnTarget == null) return;
+        
+        // Convert enemy position to screen space
+        Vector3 screenPos = Camera.main.WorldToScreenPoint(lockOnTarget.position);
+        
+        // Check if enemy is in front of camera
+        if (screenPos.z > 0)
+        {
+            lockOnIndicator.SetActive(true);
+            lockOnIndicator.transform.position = screenPos;
+        }
+        else
+        {
+            lockOnIndicator.SetActive(false);
         }
     }
 
@@ -71,6 +119,7 @@ public class ThirdPersonCamera : MonoBehaviour
             {
                 isLockedOn = false;
                 lockOnTarget = null;
+                if (lockOnIndicator != null) lockOnIndicator.SetActive(false);
                 Debug.Log("Lock-on disabled.");
             }
             else
@@ -110,6 +159,4 @@ public class ThirdPersonCamera : MonoBehaviour
 
     public bool IsLockedOn() => isLockedOn;
     public Transform GetLockOnTarget() => lockOnTarget;
-    
-   
 }
