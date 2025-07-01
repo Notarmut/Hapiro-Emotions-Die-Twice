@@ -27,43 +27,33 @@ public class PlayerHealth : MonoBehaviour
     public AudioClip healEmptySound;
     public GameObject potionModel;
 
-    [Header("References")]
-    public PlayerCombat combatController;
-
-    // Private variables
     private bool isHealing = false;
     private float lastHealTime;
-    private float originalMoveSpeed;
-    private float originalSprintSpeed;
     private AudioSource audioSource;
-    private bool originalDashEnabled;
 
     void Start()
     {
-        InitializeHealth();
-        CacheReferences();
-    }
-
-    void InitializeHealth()
-    {
         currentHealth = maxHealth;
         currentHealingCharges = maxHealingCharges;
-    }
-
-    void CacheReferences()
-    {
         audioSource = GetComponent<AudioSource>();
-
-        if (potionModel != null)
-        {
-            potionModel.SetActive(false);
-        }
+        if (potionModel != null) potionModel.SetActive(false);
     }
 
     void Update()
     {
         UpdateInvincibility();
-        HandleHealInput();
+        
+        if (Input.GetKeyDown(healKey))
+        {
+            if (CanHeal())
+            {
+                StartCoroutine(Heal());
+            }
+            else if (currentHealingCharges <= 0 && healEmptySound != null)
+            {
+                audioSource.PlayOneShot(healEmptySound);
+            }
+        }
     }
 
     void UpdateInvincibility()
@@ -74,21 +64,6 @@ public class PlayerHealth : MonoBehaviour
             if (invincibilityTimer <= 0)
             {
                 isInvincible = false;
-            }
-        }
-    }
-
-    void HandleHealInput()
-    {
-        if (Input.GetKeyDown(healKey))
-        {
-            if (CanHeal())
-            {
-                StartCoroutine(Heal());
-            }
-            else if (currentHealingCharges <= 0 && healEmptySound != null)
-            {
-                audioSource.PlayOneShot(healEmptySound);
             }
         }
     }
@@ -104,26 +79,6 @@ public class PlayerHealth : MonoBehaviour
 
     IEnumerator Heal()
     {
-        SetupHealingState();
-
-        float healStartTime = Time.time;
-        int targetHealth = Mathf.Min(currentHealth + healingPerCharge, maxHealth);
-        int healthBefore = currentHealth;
-
-        while (Time.time - healStartTime < healingDuration)
-        {
-            if (!isHealing) break;
-
-            float progress = (Time.time - healStartTime) / healingDuration;
-            currentHealth = healthBefore + Mathf.RoundToInt(progress * (targetHealth - healthBefore));
-            yield return null;
-        }
-
-        CleanUpHealing();
-    }
-
-    void SetupHealingState()
-    {
         isHealing = true;
         lastHealTime = Time.time;
         currentHealingCharges--;
@@ -133,15 +88,18 @@ public class PlayerHealth : MonoBehaviour
         if (healSound != null) audioSource.PlayOneShot(healSound);
         if (healParticles != null) healParticles.Play();
 
-        if (combatController != null) combatController.enabled = false;
-    }
+        float healStartTime = Time.time;
+        int targetHealth = Mathf.Min(currentHealth + healingPerCharge, maxHealth);
+        int healthBefore = currentHealth;
 
-    void CleanUpHealing()
-    {
+        while (Time.time - healStartTime < healingDuration)
+        {
+            float progress = (Time.time - healStartTime) / healingDuration;
+            currentHealth = healthBefore + Mathf.RoundToInt(progress * (targetHealth - healthBefore));
+            yield return null;
+        }
+
         if (potionModel != null) potionModel.SetActive(false);
-
-        if (combatController != null) combatController.enabled = true;
-
         isHealing = false;
     }
 
@@ -166,9 +124,9 @@ public class PlayerHealth : MonoBehaviour
     void StopHealing()
     {
         StopAllCoroutines();
-
         if (healParticles != null) healParticles.Stop();
-        CleanUpHealing();
+        if (potionModel != null) potionModel.SetActive(false);
+        isHealing = false;
     }
 
     public void RefillHealingCharges()
@@ -179,11 +137,12 @@ public class PlayerHealth : MonoBehaviour
     void Die()
     {
         Debug.Log("Player Died!");
-        // Add death handling (respawn, game over, etc.)
+        // Add death handling here
     }
 
-    // Public accessors
+    // Getters
     public int GetCurrentHealth() => currentHealth;
     public int GetCurrentCharges() => currentHealingCharges;
     public bool IsHealing() => isHealing;
+    public bool IsInvincible() => isInvincible;
 }
