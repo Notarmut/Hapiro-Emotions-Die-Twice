@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 public class DunyaninSonuMustafaBosstest : MonoBehaviour
 {
@@ -21,6 +22,8 @@ public class DunyaninSonuMustafaBosstest : MonoBehaviour
     public float modelYRotationOffset = 0f;
     public float headYRotationOffset = 0f;
     public float headDownTiltOffset = 0f; // Fine-tune down angle
+
+    
 
     // Head rotation storage
     private Quaternion initialHeadLocalRotation;

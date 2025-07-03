@@ -10,29 +10,48 @@ public class HealthBar : MonoBehaviour
 
     void Start()
     {
-        if (playerHealth == null) playerHealth = FindObjectOfType<PlayerHealth>();
+        if (playerHealth == null) 
+        {
+            // Updated to use the new recommended method
+            playerHealth = FindAnyObjectByType<PlayerHealth>();
+            
+            // Alternatively, if you specifically want the first instance:
+            // playerHealth = FindFirstObjectByType<PlayerHealth>();
+        }
         
+        // Initialize sliders
         healthSlider.maxValue = playerHealth.maxHealth;
         easeHealthSlider.maxValue = playerHealth.maxHealth;
         healthSlider.value = playerHealth.GetCurrentHealth();
         easeHealthSlider.value = playerHealth.GetCurrentHealth();
+        
+        // Subscribe to health change events
+        PlayerHealth.OnHealthChanged += UpdateHealthBar;
+    }
+
+    void OnDestroy()
+    {
+        // Unsubscribe to prevent memory leaks
+        PlayerHealth.OnHealthChanged -= UpdateHealthBar;
+    }
+
+    void UpdateHealthBar(int currentHealth)
+    {
+        healthSlider.value = currentHealth;
     }
 
     void Update()
     {
-        if (playerHealth == null) return;
-
-        healthSlider.value = playerHealth.GetCurrentHealth();
-
+        // Smooth the ease health slider
         if (Mathf.Abs(easeHealthSlider.value - healthSlider.value) > 0.01f)
         {
             easeHealthSlider.value = Mathf.Lerp(easeHealthSlider.value, 
-                                             playerHealth.GetCurrentHealth(), 
+                                             healthSlider.value, 
                                              lerpSpeed);
         }
         else
         {
-            easeHealthSlider.value = playerHealth.GetCurrentHealth();
+            easeHealthSlider.value = healthSlider.value;
         }
     }
 }

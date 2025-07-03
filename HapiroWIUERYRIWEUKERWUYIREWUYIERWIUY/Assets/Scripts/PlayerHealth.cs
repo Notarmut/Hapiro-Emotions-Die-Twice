@@ -31,12 +31,19 @@ public class PlayerHealth : MonoBehaviour
     private float lastHealTime;
     private AudioSource audioSource;
 
+    // Event for health changes
+    public delegate void HealthChanged(int currentHealth);
+    public static event HealthChanged OnHealthChanged;
+
     void Start()
     {
         currentHealth = maxHealth;
         currentHealingCharges = maxHealingCharges;
         audioSource = GetComponent<AudioSource>();
         if (potionModel != null) potionModel.SetActive(false);
+        
+        // Initialize health bar
+        OnHealthChanged?.Invoke(currentHealth);
     }
 
     void Update()
@@ -96,9 +103,13 @@ public class PlayerHealth : MonoBehaviour
         {
             float progress = (Time.time - healStartTime) / healingDuration;
             currentHealth = healthBefore + Mathf.RoundToInt(progress * (targetHealth - healthBefore));
+            OnHealthChanged?.Invoke(currentHealth); // Update health bar during healing
             yield return null;
         }
 
+        currentHealth = targetHealth; // Ensure we reach exact target
+        OnHealthChanged?.Invoke(currentHealth); // Final update
+        
         if (potionModel != null) potionModel.SetActive(false);
         isHealing = false;
     }
@@ -108,6 +119,8 @@ public class PlayerHealth : MonoBehaviour
         if (isInvincible || currentHealth <= 0 || isHealing) return;
 
         currentHealth -= damage;
+        OnHealthChanged?.Invoke(currentHealth); // Update health bar on damage
+        
         isInvincible = true;
         invincibilityTimer = invincibilityTime;
 
